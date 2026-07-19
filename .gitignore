@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+.next/
+out/
+
+# 敏感配置（本地用，CI 用 Secrets）
+config.yaml
+
+# 旧的调度器相关
+data/twitter_profile/
+data/twitter_state.json
+data/last_check.json
+data/tracker.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+.reasonix/
