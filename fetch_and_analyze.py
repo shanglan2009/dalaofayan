@@ -42,7 +42,8 @@ TWITTER_USERS = [
 ]
 
 OUTPUT_DIR = Path("data")
-OUTPUT_FILE = OUTPUT_DIR / "latest.json"
+INDEX_FILE = OUTPUT_DIR / "index.json"
+RETENTION_DAYS = 30  # 保留近30天数据
 
 # ── 日志 ──────────────────────────────────────────────
 
@@ -371,6 +372,44 @@ def is_trading_day(d: datetime) -> bool:
     return d.weekday() < 5
 
 
+def save_result(date_str: str, result: dict):
+    """保存结果到 data/{date}.json 并更新 index"""
+    OUTPUT_DIR.mkdir(exist_ok=True)
+    date_file = OUTPUT_DIR / f"{date_str}.json"
+    date_file.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info(f"已保存: {date_file}")
+    update_index()
+
+
+def update_index():
+    """重建 data/index.json，清理过期文件"""
+    dates: list[str] = []
+    cutoff = datetime.now(timezone(timedelta(hours=8))) - timedelta(days=RETENTION_DAYS)
+
+    for f in sorted(OUTPUT_DIR.glob("*.json")):
+        if f.name == "index.json":
+            continue
+        date_str = f.stem  # e.g. "2026-07-17"
+        try:
+            file_date = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone(timedelta(hours=8)))
+        except ValueError:
+            continue
+        # 删除过期文件
+        if file_date < cutoff:
+            f.unlink()
+            logger.info(f"清理过期数据: {f.name}")
+            continue
+        dates.append(date_str)
+
+    dates.sort(reverse=True)
+    INDEX_FILE.write_text(
+        json.dumps({"dates": dates, "updated": datetime.now(timezone(timedelta(hours=8))).isoformat()},
+                   ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    logger.info(f"Index 已更新: {len(dates)} 个日期")
+
+
 def git_commit_and_push():
     """自动 commit 并 push 数据文件"""
     token = os.getenv("GITHUB_TOKEN", "")
@@ -389,8 +428,8 @@ def git_commit_and_push():
     subprocess.run(["git", "config", "user.name", "dalaofayan-bot"], check=False)
     subprocess.run(["git", "config", "user.email", "bot@dalaofayan.dev"], check=False)
 
-    # commit
-    subprocess.run(["git", "add", str(OUTPUT_FILE)], check=False)
+    # commit — add all data files (per-date JSONs + index)
+    subprocess.run(["git", "add", str(OUTPUT_DIR)], check=False)
     result = subprocess.run(
         ["git", "commit", "-m", f"auto: {RUN_MODE} update {datetime.now().strftime('%m-%d %H:%M')}"],
         capture_output=True, text=True
@@ -417,18 +456,14 @@ def main():
     since, period_desc = get_time_range()
 
     # 检查交易日
-    if not is_trading_day(datetime.now(timezone(timedelta(hours=8)))):
-        logger.info("今天不是交易日（周末），跳过")
-        # 仍然更新 JSON，但标注非交易日
-        result = {
-            "updated": datetime.now(timezone(timedelta(hours=8))).isoformat(),
-            "period": period_desc,
-            "is_trading_day": False,
-            "posts": [],
-            "summary": "今日非交易日，暂无数据",
-        }
-        OUTPUT_DIR.mkdir(exist_ok=True)
-        OUTPUT_FILE.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    target_date = datetime.now(timezone(timedelta(hours=8)))
+    date_str = target_date.strftime("%Y-%m-%d")
+
+    if not is_trading_day(target_date):
+        logger.info(f"{date_str} 不是交易日（周末），跳过抓取")
+        # 更新 index（清理旧文件）但不新增数据
+        update_index()
+        # 如果今天已经有数据文件（可能之前手动跑过），保留不动
         git_commit_and_push()
         return
 
@@ -474,6 +509,7 @@ def main():
     result = {
         "updated": datetime.now(timezone(timedelta(hours=8))).isoformat(),
         "period": period_desc,
+        "date": date_str,
         "is_trading_day": True,
         "total": len(all_posts),
         "finance_count": len(finance_posts),
@@ -482,9 +518,7 @@ def main():
         "posts": finance_posts,
     }
 
-    OUTPUT_DIR.mkdir(exist_ok=True)
-    OUTPUT_FILE.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    logger.info(f"结果已写入 {OUTPUT_FILE}")
+    save_result(date_str, result)
 
     # ── 自动 Push ──
     git_commit_and_push()

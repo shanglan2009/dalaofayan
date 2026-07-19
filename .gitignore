@@ -6,6 +6,7 @@ __pycache__/
 node_modules/
 .next/
 out/
+*.tsbuildinfo
 
 # 敏感配置（本地用，CI 用 Secrets）
 config.yaml
