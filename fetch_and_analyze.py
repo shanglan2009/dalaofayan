@@ -134,7 +134,7 @@ class ZhihuFetcher:
         logger.info(f"[知乎] {name}: {len(all_posts)} 条")
         return all_posts
 
-    def _parse_item(self, item: dict, name: str, post_type: str) -> Optional[dict]:
+    def _parse_item(self, item: dict, name: str, post_type: str) -> dict | None:
         """解析不同端点的条目"""
         ts = item.get("created_time") or item.get("updated_time") or 0
         if ts == 0:
