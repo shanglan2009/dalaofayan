@@ -382,9 +382,15 @@ def save_result(date_str: str, result: dict):
 
 
 def update_index():
-    """重建 data/index.json，清理过期文件"""
+    """重建 data/index.json，清理过期文件和旧的 latest.json"""
     dates: list[str] = []
     cutoff = datetime.now(timezone(timedelta(hours=8))) - timedelta(days=RETENTION_DAYS)
+
+    # 清理旧的 latest.json（已废弃的单文件模式）
+    old_latest = OUTPUT_DIR / "latest.json"
+    if old_latest.exists():
+        old_latest.unlink()
+        logger.info("清理旧文件: latest.json")
 
     for f in sorted(OUTPUT_DIR.glob("*.json")):
         if f.name == "index.json":
@@ -460,12 +466,8 @@ def main():
     date_str = target_date.strftime("%Y-%m-%d")
 
     if not is_trading_day(target_date):
-        logger.info(f"{date_str} 不是交易日（周末），跳过抓取")
-        # 更新 index（清理旧文件）但不新增数据
-        update_index()
-        # 如果今天已经有数据文件（可能之前手动跑过），保留不动
-        git_commit_and_push()
-        return
+        logger.info(f"{date_str} 不是交易日（周末），跳过")
+        return  # 不做任何操作，避免周末噪音commit
 
     all_posts: list[dict] = []
 

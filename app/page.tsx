@@ -36,6 +36,8 @@ function getAvailableDates(): string[] {
 }
 
 function loadDayData(dateStr: string): DayData | null {
+  // 防止路径穿越攻击：仅允许 YYYY-MM-DD 格式
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null
   try {
     const fp = path.join(DATA_DIR, `${dateStr}.json`)
     if (!fs.existsSync(fp)) return null
