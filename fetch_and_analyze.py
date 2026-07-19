@@ -19,8 +19,6 @@ import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
-
 import httpx
 from openai import OpenAI
 
@@ -58,9 +56,9 @@ logger = logging.getLogger("fetch")
 # ── 知乎爬虫 ──────────────────────────────────────────
 
 class ZhihuFetcher:
-    """知乎用户动态抓取"""
+    """知乎用户动态抓取 — 使用 answers / articles / pins 三个端点"""
 
-    API = "https://www.zhihu.com/api/v4/members/{token}/activities"
+    API_BASE = "https://www.zhihu.com/api/v4/members/{token}"
     HEADERS = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "x-api-version": "3.0.40",
@@ -78,73 +76,93 @@ class ZhihuFetcher:
             headers=self.HEADERS, cookies=cookies, timeout=30.0
         )
 
-    def fetch_user(self, url_token: str, name: str, since: datetime) -> list[dict]:
-        """获取用户动态"""
+    def _fetch_endpoint(
+        self, url: str, since: datetime, post_type: str, name: str
+    ) -> list[dict]:
+        """通用端点抓取"""
         posts: list[dict] = []
-        after_id: Optional[str] = None
+        offset = 0
+        max_pages = 2
 
-        for _ in range(3):  # 最多3页
-            params: dict = {"limit": 10, "desktop": "true"}
-            if after_id:
-                params["after_id"] = after_id
-
+        for _ in range(max_pages):
+            sep = "&" if "?" in url else "?"
+            full_url = f"{url}{sep}limit=10&offset={offset}"
             try:
-                resp = self.client.get(
-                    self.API.format(token=url_token), params=params
-                )
+                resp = self.client.get(full_url)
                 resp.raise_for_status()
                 data = resp.json()
             except Exception as e:
-                logger.warning(f"[知乎] {name} 请求失败: {e}")
+                logger.warning(f"[知乎] {name} {post_type} 请求失败: {e}")
                 break
 
-            for act in data.get("data", []):
-                post = self._parse(act, name, url_token)
+            items = data.get("data", [])
+            if not items:
+                break
+
+            for item in items:
+                post = self._parse_item(item, name, post_type)
                 if post and post["created_at"] > since.isoformat():
                     posts.append(post)
 
             paging = data.get("paging", {})
-            if paging.get("is_end"):
+            if paging.get("is_end", True):
                 break
-            next_url = paging.get("next", "")
-            if "after_id=" in next_url:
-                after_id = next_url.split("after_id=")[-1].split("&")[0]
-            elif next_url:
-                after_id = next_url
-            else:
-                break
+            offset += len(items)
             time.sleep(0.5)
 
-        logger.info(f"[知乎] {name}: {len(posts)} 条")
         return posts
 
-    def _parse(self, act: dict, name: str, token: str) -> Optional[dict]:
-        verb = act.get("verb", "")
-        target = act.get("target", {})
-        if not target:
-            return None
+    def fetch_user(self, url_token: str, name: str, since: datetime) -> list[dict]:
+        """获取用户动态（回答 + 文章 + 想法）"""
+        all_posts: list[dict] = []
 
-        ts = act.get("created_time", 0)
+        base = self.API_BASE.format(token=url_token)
+        endpoints = [
+            (f"{base}/answers?sort_by=created", "answer"),
+            (f"{base}/articles", "article"),
+            (f"{base}/pins", "pin"),
+        ]
+
+        for url, ptype in endpoints:
+            try:
+                posts = self._fetch_endpoint(url, since, ptype, name)
+                all_posts.extend(posts)
+            except Exception as e:
+                logger.error(f"[知乎] {name} {ptype} 抓取出错: {e}")
+            time.sleep(0.5)
+
+        logger.info(f"[知乎] {name}: {len(all_posts)} 条")
+        return all_posts
+
+    def _parse_item(self, item: dict, name: str, post_type: str) -> Optional[dict]:
+        """解析不同端点的条目"""
+        ts = item.get("created_time") or item.get("updated_time") or 0
         if ts == 0:
             return None
         created = datetime.fromtimestamp(ts, tz=timezone(timedelta(hours=8)))
 
-        if verb == "ANSWER_CREATE":
-            q = target.get("question", {})
+        if post_type == "answer":
+            q = item.get("question", {})
             title = q.get("title", "")
-            content = target.get("excerpt", "")
-            pid = target.get("id", "")
+            content = item.get("excerpt", "")
+            pid = item.get("id", "")
             url = f"https://www.zhihu.com/question/{q.get('id','')}/answer/{pid}"
-        elif verb == "MEMBER_CREATE_ARTICLE":
-            title = target.get("title", "")
-            content = target.get("excerpt", "")
-            pid = target.get("id", "")
+        elif post_type == "article":
+            title = item.get("title", "")
+            content = item.get("excerpt", "")
+            pid = item.get("id", "")
             url = f"https://zhuanlan.zhihu.com/p/{pid}"
-        elif verb == "QUESTION_CREATE":
-            title = target.get("title", "")
-            content = target.get("excerpt", "")
-            pid = target.get("id", "")
-            url = f"https://www.zhihu.com/question/{pid}"
+        elif post_type == "pin":
+            title = ""
+            content = ""
+            # pins 可能有多块内容
+            for block in item.get("content", []):
+                if isinstance(block, dict) and block.get("content"):
+                    content += block["content"] + "\n"
+            content = content.strip()
+            pid = item.get("id", "")
+            # pin URL
+            url = f"https://www.zhihu.com/pin/{pid}"
         else:
             return None
 
