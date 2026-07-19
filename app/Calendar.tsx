@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 interface CalendarProps {
   availableDates: string[]  // e.g. ["2026-07-18", "2026-07-17"]
@@ -23,6 +23,22 @@ export default function Calendar({ availableDates, selectedDate }: CalendarProps
 
   const [open, setOpen] = useState(false)
 
+  // 当 selectedDate 从外部变化时，同步年月
+  useEffect(() => {
+    if (selectedDate) {
+      setYear(parseInt(selectedDate.slice(0, 4)))
+      setMonth(parseInt(selectedDate.slice(5, 7)) - 1)
+    }
+  }, [selectedDate])
+
+  // Escape 关闭
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false) }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [open])
+
   const prevMonth = () => {
     if (month === 0) { setMonth(11); setYear(y => y - 1) }
     else setMonth(m => m - 1)
@@ -39,6 +55,9 @@ export default function Calendar({ availableDates, selectedDate }: CalendarProps
   for (let i = 0; i < firstDay; i++) cells.push(null)
   for (let d = 1; d <= daysInMonth; d++) cells.push(d)
 
+  // 用本地时间判断今天
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+
   const formatDate = (d: number) => {
     return `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
   }
@@ -47,6 +66,7 @@ export default function Calendar({ availableDates, selectedDate }: CalendarProps
     <div style={{ position: "relative", display: "inline-block" }}>
       <button
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         style={{
           background: "#1e293b", color: "#94a3b8", border: "1px solid #334155",
           borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontSize: 14,
@@ -70,11 +90,11 @@ export default function Calendar({ availableDates, selectedDate }: CalendarProps
           }}>
             {/* Month nav */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <button onClick={prevMonth} style={navBtnStyle}>◀</button>
+              <button onClick={prevMonth} style={navBtnStyle} aria-label="上个月">◀</button>
               <span style={{ color: "#f1f5f9", fontWeight: 600, fontSize: 15 }}>
                 {year}年{month + 1}月
               </span>
-              <button onClick={nextMonth} style={navBtnStyle}>▶</button>
+              <button onClick={nextMonth} style={navBtnStyle} aria-label="下个月">▶</button>
             </div>
 
             {/* Day headers */}
@@ -90,12 +110,12 @@ export default function Calendar({ availableDates, selectedDate }: CalendarProps
                 if (d === null) return <div key={`e${i}`} />
                 const dateStr = formatDate(d)
                 const hasData = dateSet.has(dateStr)
-                const isToday = dateStr === today.toISOString().slice(0, 10)
+                const isToday = dateStr === todayStr
                 const isSelected = dateStr === selectedDate
 
                 return (
                   <a
-                    key={d}
+                    key={dateStr}
                     href={`?date=${dateStr}`}
                     onClick={() => setOpen(false)}
                     style={{
