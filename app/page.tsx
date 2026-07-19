@@ -1,5 +1,31 @@
 import data from "@/data/latest.json"
 
+interface Post {
+  author: string
+  source: string
+  title: string
+  content: string
+  url: string
+  created_at: string
+  is_finance: boolean
+  sentiment: string
+  targets: string[]
+  summary: string
+}
+
+interface DataFile {
+  updated: string
+  period: string
+  is_trading_day: boolean
+  total?: number
+  finance_count?: number
+  bullish_count?: number
+  bearish_count?: number
+  posts: Post[]
+}
+
+const typed = data as DataFile
+
 const SENTIMENT_MAP: Record<string, { icon: string; label: string; color: string }> = {
   bullish: { icon: "🟢", label: "看多", color: "#22c55e" },
   bearish: { icon: "🔴", label: "看空", color: "#ef4444" },
@@ -17,7 +43,7 @@ function formatTime(iso: string): string {
 }
 
 export default function Home() {
-  const posts = data.posts || []
+  const posts = typed.posts || []
   const financePosts = posts.filter(p => p.is_finance)
 
   return (
@@ -26,12 +52,12 @@ export default function Home() {
       <div style={{ textAlign: "center", padding: "32px 0 16px" }}>
         <h1 style={{ fontSize: 28, margin: 0, color: "#f8fafc" }}>📊 大佬发言追踪</h1>
         <p style={{ color: "#64748b", fontSize: 14, margin: "8px 0 0" }}>
-          {data.period || "加载中..."} · 更新于 {formatTime(data.updated) || "—"}
+          {typed.period || "加载中..."} · 更新于 {formatTime(typed.updated) || "—"}
         </p>
       </div>
 
       {/* 非交易日 */}
-      {!data.is_trading_day && (
+      {!typed.is_trading_day && (
         <div style={{
           textAlign: "center", padding: 40, color: "#64748b",
           background: "#1e293b", borderRadius: 12, margin: "16px 0"
@@ -41,17 +67,17 @@ export default function Home() {
       )}
 
       {/* 统计卡片 */}
-      {data.is_trading_day && (
+      {typed.is_trading_day && (
         <div style={{ display: "flex", gap: 12, margin: "16px 0", flexWrap: "wrap" }}>
-          <StatCard label="总发言" value={data.total} color="#3b82f6" />
-          <StatCard label="财经相关" value={data.finance_count} color="#f59e0b" />
-          <StatCard label="🟢 看多" value={data.bullish_count} color="#22c55e" />
-          <StatCard label="🔴 看空" value={data.bearish_count} color="#ef4444" />
+          <StatCard label="总发言" value={typed.total || 0} color="#3b82f6" />
+          <StatCard label="财经相关" value={typed.finance_count || 0} color="#f59e0b" />
+          <StatCard label="🟢 看多" value={typed.bullish_count || 0} color="#22c55e" />
+          <StatCard label="🔴 看空" value={typed.bearish_count || 0} color="#ef4444" />
         </div>
       )}
 
       {/* 发言列表 */}
-      {financePosts.length === 0 && data.is_trading_day && (
+      {financePosts.length === 0 && typed.is_trading_day && (
         <div style={{
           textAlign: "center", padding: 40, color: "#64748b",
           background: "#1e293b", borderRadius: 12, margin: "16px 0"
