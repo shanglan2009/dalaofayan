@@ -1,5 +1,6 @@
 import fs from "fs"
 import path from "path"
+import Calendar from "./Calendar"
 
 const DATA_DIR = path.join(process.cwd(), "data")
 const SENTIMENT_MAP: Record<string, { icon: string; label: string; color: string }> = {
@@ -77,24 +78,19 @@ function renderPage(selectedDate: string, dates: string[], data: DayData | null)
       </div>
 
       {/* 日期选择器 */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
-        padding: "12px 0", justifyContent: "center"
-      }}>
-        <span style={{ color: "#64748b", fontSize: 13 }}>📅</span>
-        {dates.slice(0, 14).map(d => (
-          <a key={d} href={`?date=${d}`} style={{
-            padding: "4px 10px", borderRadius: 6, fontSize: 13, textDecoration: "none",
-            background: d === selectedDate ? "#3b82f6" : "#1e293b",
-            color: d === selectedDate ? "#fff" : "#94a3b8",
-            fontWeight: d === selectedDate ? 600 : 400,
-          }}>
-            {d.slice(5)}
-          </a>
-        ))}
-        {dates.length > 14 && (
-          <span style={{ color: "#475569", fontSize: 12 }}>+{dates.length - 14}天</span>
-        )}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "12px 0" }}>
+        <Calendar availableDates={dates} selectedDate={selectedDate} />
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {dates.slice(0, 5).map(d => (
+            <a key={d} href={`?date=${d}`} style={{
+              padding: "4px 10px", borderRadius: 6, fontSize: 12, textDecoration: "none",
+              background: d === selectedDate ? "#3b82f6" : "#1e293b",
+              color: d === selectedDate ? "#fff" : "#94a3b8",
+            }}>
+              {d.slice(5)}
+            </a>
+          ))}
+        </div>
       </div>
 
       {/* 无数据 */}
