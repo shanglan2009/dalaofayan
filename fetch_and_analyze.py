@@ -513,7 +513,7 @@ def main():
         "period": period_desc,
         "date": date_str,
         "is_trading_day": True,
-        "total": len(all_posts),
+        "total": len(finance_posts),  # 只统计已保留的财经济贴
         "finance_count": len(finance_posts),
         "bullish_count": len(bulls),
         "bearish_count": len(bears),

@@ -3,7 +3,7 @@
   "period": "07月18日 上午",
   "date": "2026-07-18",
   "is_trading_day": true,
-  "total": 8,
+  "total": 5,
   "finance_count": 5,
   "bullish_count": 3,
   "bearish_count": 2,
@@ -64,7 +64,7 @@
       "url": "https://x.com/sszcw/status/123457",
       "created_at": "2026-07-18T09:00:00+08:00",
       "is_finance": true,
-      "sentiment": "bearish",
+      "sentiment": "bullish",
       "targets": ["医药"],
       "summary": "医药板块利空出尽，建议布局"
     }
